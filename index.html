@@ -24,20 +24,17 @@
                 <h1 class="display-5">Training</h1>
             </div>
             <div class="row justify-content-center">
-                <div class="btn-group btn-block btn-group-toggle btn-group-vertical">
-                    <label class="btn btn-secondary active">
-                        <input type="radio" name="options">Liegestützen
-                    </label>
-                    <label class="btn btn-block btn-secondary">
-                        <input type="radio" name="options">Skip Rope
-                    </label>
-                    <label class="btn btn-block btn-secondary">
-                        <input type="radio" name="options">Rumpfbeugen
-                    </label>
-                    <label class="btn btn-block btn-secondary">
-                        <input type="radio" name="options">Biceps Curl
-                    </label>
-                </div>
+                <div class="btn-group btn-block btn-group-toggle btn-group-vertical"></div>
+            </div>
+            <div id='pills' class="row justify-content-center p-4">
+                <button type="button" class="btn btn-primary btn-sm m-3">10</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">15</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">20</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">25</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">30</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">35</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">40</button>
+                <button type="button" class="btn btn-primary btn-sm m-3">45</button>
             </div>
             <div class="row justify-content-center p-4">
                 <input id="amount" inputmode="numeric" pattern="[0-9]*" type="text" name="amount" class="form-control"
@@ -62,15 +59,7 @@
 
             <div class="row justify-content-center">
                 <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Datum</th>
-                            <th>Liegestützen</th>
-                            <th>Skip Rope</th>
-                            <th>Rumpfbeugen</th>
-                            <th>Biceps Curl</th>
-                        </tr>
-                    </thead>
+                    <thead id="head"></thead>
                     <tbody id="data"></tbody>
                 </table>
             </div>
@@ -86,7 +75,8 @@
     <script type="text/javascript">
         // Client ID and API key from the Developer Console
         var CLIENT_ID = '1074737167196-vkgmi20tjd0a4ivuq83v6739bch3781c.apps.googleusercontent.com';
-        var API_KEY = '';
+        var API_KEY = 'REPLACE_API_KEY';
+        var spreadsheetId = 'REPLACE_SPREAD_SHEET';
 
         // Array of API discovery doc URLs for APIs used by the quickstart
         var DISCOVERY_DOCS = ["https://sheets.googleapis.com/$discovery/rest?version=v4"];
@@ -98,7 +88,9 @@
         var authorizeButton = document.getElementById('authorize_button');
         var signoutButton = document.getElementById('signout_button');
 
-        var activity = 'Liegestützen';
+        var columnOffset = 2 // exclude first two columns'Tag', 'Zeit'
+        var activityIndex = columnOffset; // initial selection
+        var activityCount;
         var amount;
         var inputSheetName;
         var overviewSheetName;
@@ -144,16 +136,11 @@
                 $('#input-block').show();
 
                 var profile = gapi.auth2.getAuthInstance().currentUser.get().getBasicProfile();
-                console.log('ID: ' + profile.getId());
-                console.log('Full Name: ' + profile.getName());
-                console.log('Given Name: ' + profile.getGivenName());
-                console.log('Family Name: ' + profile.getFamilyName());
-                console.log('Image URL: ' + profile.getImageUrl());
-                console.log('Email: ' + profile.getEmail());
                 showMessage('Hoi, ' + profile.getGivenName());
                 inputSheetName = 'Daten ' + profile.getGivenName();
                 overviewSheetName = 'Training ' + profile.getGivenName();
                 getTrainingData();
+                getTrainingOverview();
             } else {
                 $('#input-block').hide();
                 authorizeButton.style.display = 'block';
@@ -180,25 +167,35 @@
             $('.alert-primary').show().append(message);
         }
 
-        function getTrainingData() {
+        function getTrainingOverview() {
             gapi.client.sheets.spreadsheets.values.get({
-                spreadsheetId: '1y6uvVwnEo3u7gqCv9tFVSMZPG0oCm95DomD8w72hhEA',
-                range: overviewSheetName + '!A2:E',
+                spreadsheetId: spreadsheetId,
+                range: overviewSheetName + '!A1:P',
             }).then(function (response) {
                 var range = response.result;
-                var elem = $('#data');
-                $('#data').empty();
-                if (range.values.length > 0) {
-                    for (i = 0; i < range.values.length; i++) {
+                var headElem = $('#head');
+                var dataElem = $('#data');
+                headElem.empty();
+                dataElem.empty();
+                if (range.values && range.values.length > 0) {
+                    var headHtml = "<tr>";
+                    var head = range.values[0];
+                    for (j = 0; j < head.length; j++) {
+                        headHtml += "<th>" + head[j] + "</th>"
+                    }
+                    headHtml += "</tr>";
+                    headElem.append(headHtml);
+                    for (i = 1; i < range.values.length; i++) {
                         var row = range.values[i];
-                        elem.append("<tr><td>" + row[0] + "</td><td>"
-                            + row[1] + "</td><td>"
-                            + row[2] + "</td><td>"
-                            + row[3] + "</td><td>"
-                            + row[4] + "</td></tr>");
+                        var html = "<tr>";
+                        for (j = 0; j < range.values[i].length; j++) {
+                            html += "<td>" + row[j] + "</td>"
+                        }
+                        html += "</tr>";
+                        dataElem.append(html);
                     }
                 } else {
-                    elem.append('No data found.');
+                    dataElem.append('No data found.');
                 }
             }, function (response) {
                 console.log(response.result.error);
@@ -206,35 +203,62 @@
             });
         }
 
-        $('.btn-group-toggle .btn').on('click', function (event) {
-            $(".btn-group > .btn").removeClass("active");
-            $(this).addClass("active");
-            activity = $(this).text().trim();
+        function getTrainingData() {
+            gapi.client.sheets.spreadsheets.values.get({
+                spreadsheetId: spreadsheetId,
+                range: inputSheetName + '!A1:P1',
+            }).then(function (response) {
+                var range = response.result;
+                var btnGroup = $('.btn-group');
+                btnGroup.empty();
+                if (range.values && range.values.length > 0) {
+                    var actionHtml = "";
+                    var head = range.values[0];
+                    activityCount = range.values[0].length - columnOffset;
+                    for (i = columnOffset; i < head.length; i++) {
+                        // build action buttons
+                        actionHtml += "<label class=\"btn btn-secondary" + (i === columnOffset ? " active " : "") + "\" data-index=\"" + i + "\">";
+                        actionHtml += "<input type=\"radio\" name=\"options\">" + head[i] + "</label>";
+                    }
+                    btnGroup.append(actionHtml);
+
+                    $('.btn-group-toggle .btn').on('click', function (event) {
+                        activityIndex = $(this).data("index");
+                        $(".btn-group > .btn").removeClass("active");
+                        $(this).addClass("active");
+                    });
+                } else {
+                    dataElem.append('No data found.');
+                }
+            }, function (response) {
+                console.log(response.result.error);
+                showMessage('Error: ' + response.result.error.message);
+            });
+        }
+
+        $('#pills > .btn').on('click', function (event) {
+            $('#amount').val(event.target.innerText);
         });
 
         $('#save').on('click', function (event) {
             amount = $('#amount').val().trim();
+            var values = new Array(activityCount + columnOffset);
+            values[0] = moment().format('DD.MM.YYYY');
+            values[1] = moment().format('HH:mm:ss');
+            values[activityIndex] = amount;
             var body = {
-                values: [
-                    [
-                        moment().format('DD.MM.YYYY'),
-                        moment().format('HH:mm:ss'),
-                        activity === 'Liegestützen' ? amount : null,
-                        activity === 'Skip Rope' ? amount : null,
-                        activity === 'Rumpfbeugen' ? amount : null,
-                        activity === 'Biceps Curl' ? amount : null
-                    ]
-                ],
+                values: [values],
             }
             gapi.client.sheets.spreadsheets.values.append({
-                spreadsheetId: '1y6uvVwnEo3u7gqCv9tFVSMZPG0oCm95DomD8w72hhEA',
+                spreadsheetId: spreadsheetId,
                 range: inputSheetName,
                 valueInputOption: 'USER_ENTERED',
                 insertDataOption: 'INSERT_ROWS'
             }, body).then(function (response) {
                 if (response.status === 200) {
                     showMessage('Daten gespeichert');
-                    getTrainingData();
+                    $('#amount').val('');
+                    getTrainingOverview();
                 } else {
                     console.log(response.result.error);
                     showMessage('Error: ' + response.result.error.message);
